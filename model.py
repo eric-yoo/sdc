@@ -6,9 +6,10 @@ from __future__ import print_function
 
 import sys
 import os
-import csv
 import tensorflow as tf
 import numpy as np
+import pandas
+import random
 from tensorflow.python.client import device_lib
 
 # device_lib.list_local_devices()
@@ -53,15 +54,10 @@ def event_adapter(batch_size):
     """
 
     filepath = os.path.join(os.getcwd(), "data_train")
-    train_data_file = os.path.join(filepath, "0809_train.csv")
-    with open (train_data_file, "r") as csvfile:
-        reader = csv.reader(csvfile)
-        for event in reader:
-            # print (event)
-            pass
-
-    # TODO: Replace mock data with real data
-    event_records = np.random.uniform(0, 1, (batch_size, event_dim))
+    train_data_file = os.path.join(filepath, "train_data.csv")
+    n = sum(1 for line in open(train_data_file)) - 1 #number of records in file (excludes header)
+    skip = sorted(random.sample(range(1,n+1),n-batch_size)) #the 0-indexed header will not be included in the skip list
+    event_records = pandas.read_csv(train_data_file, skiprows=skip, engine='python')
 
     query_answers = []
     query_answers.append(np.random.randint(0, answer_dim[0], batch_size))
