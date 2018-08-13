@@ -5,6 +5,8 @@
 from __future__ import print_function
 
 import sys
+import os
+import csv
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.client import device_lib
@@ -49,6 +51,14 @@ def event_adapter(batch_size):
       event_records: event records to be returned
       query_answers: answers to query
     """
+
+    filepath = os.path.join(os.getcwd(), "data_train")
+    train_data_file = os.path.join(filepath, "0809_train.csv")
+    with open (train_data_file, "r") as csvfile:
+        reader = csv.reader(csvfile)
+        for event in reader:
+            # print (event)
+            pass
 
     # TODO: Replace mock data with real data
     event_records = np.random.uniform(0, 1, (batch_size, event_dim))
@@ -165,4 +175,3 @@ with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
             if epoch % 5 == 0:
                 print("Epoch: {}, Loss: {:.4}".format(epoch, loss))
-
