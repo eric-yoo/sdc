@@ -5,11 +5,8 @@
 from __future__ import print_function
 
 import sys
-import os
 import tensorflow as tf
 import numpy as np
-import pandas
-import random
 from tensorflow.python.client import device_lib
 from sklearn.preprocessing import LabelEncoder
 
@@ -35,15 +32,9 @@ for i in encode_index:
 
 # device_lib.list_local_devices()
 
-# TODO: Better command line option parsing?
-device_name = sys.argv[0]
-if device_name == "gpu":
-    device_name = "/gpu:0"
-else:
-    device_name = "/cpu:0"
-
 # Parameters
-num_epochs = 80
+total_rows = 22000
+num_epochs = 20
 learning_rate = 1e-3
 batch_size = 64
 
@@ -96,6 +87,21 @@ def event_adapter(batch_size):
     query_answers = sample[query_index].values
 
     return event_records, query_answers
+
+def test_event_adapter(batch_size):
+    """
+    Adapter for test event records.
+
+    Arguments
+      batch_size: batch size
+
+    Returns
+      test_event_records: evnet records to be returned
+    """
+    # TODO: Replace data with real data
+    test_event_records = np.random.uniform(0, 1, (batch_size, event_dim))
+
+    return test_event_records
 
 def encoder_net(events_embedded):
     """
@@ -210,35 +216,82 @@ model_loss = loss_0 + loss_1 + loss_2 +loss_3 + loss_4 + loss_5 + loss_6 + loss_
 # Declare Optimizer
 solver = tf.train.AdamOptimizer(learning_rate).minimize(model_loss)
 
-with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-    with tf.device(device_name):
+with tf.Session() as sess:
+    with tf.device("/cpu:0"):
         sess.run(tf.global_variables_initializer())
 
+        # Train the model
         for epoch in range(num_epochs):
-            events_records, query_answers = event_adapter(batch_size)
+            for iter in range(total_rows // batch_size):
+                event_records, query_answers = event_adapter(batch_size)
 
-            feed_dict = {
-                events: events_records,
-                answer_0: query_answers[0],
-                answer_1: query_answers[1],
-                answer_2: query_answers[2],
-                answer_3: query_answers[3],
-                answer_4: query_answers[4],
-                answer_5: query_answers[5],
-                answer_6: query_answers[6],
-                answer_7: query_answers[7],
-                answer_8: query_answers[8],
-                answer_9: query_answers[9],
-                answer_10: query_answers[10],
-                answer_11: query_answers[11],
-                answer_12: query_answers[12],
-                answer_13: query_answers[13],
-                answer_14: query_answers[14],
-                answer_15: query_answers[15],
+                feed_dict = {
+                    events: events_records,
+                    answer_0: query_answers[0],
+                    answer_1: query_answers[1],
+                    answer_2: query_answers[2],
+                    answer_3: query_answers[3],
+                    answer_4: query_answers[4],
+                    answer_5: query_answers[5],
+                    answer_6: query_answers[6],
+                    answer_7: query_answers[7],
+                    answer_8: query_answers[8],
+                    answer_9: query_answers[9],
+                    answer_10: query_answers[10],
+                    answer_11: query_answers[11],
+                    answer_12: query_answers[12],
+                    answer_13: query_answers[13],
+                    answer_14: query_answers[14],
+                    answer_15: query_answers[15],
+                }
 
-            }
+                _, loss = sess.run([solver, model_loss], feed_dict)
 
-            _, loss = sess.run([solver, model_loss], feed_dict)
+                # Are we doing well?
+                if iter % 1000 == 0:
+                    print("Epoch: {}, Loss: {:.4}".format(epoch, loss))
 
-            if epoch % 5 == 0:
-                print("Epoch: {}, Loss: {:.4}".format(epoch, loss))
+                    predicted_query_answers = []
+                    predicted_query_answers.append(tf.argmax(logits_0, 1))
+                    predicted_query_answers.append(tf.argmax(logits_1, 1))
+                    predicted_query_answers.append(tf.argmax(logits_2, 1))
+
+                    indent = "--"
+                    for i in range(3):
+                        prediction_results = tf.equal(predicted_query_answers[i], query_answers[i])
+                        correct_predictions = tf.reduce_sum(tf.cast(prediction_results, tf.int64))
+
+                        total_predictions = batch_size
+
+                        correct  = correct_predictions / total_predictions
+                        accuracy = sess.run(correct, feed_dict={events: event_records})
+
+                        print("{} accuracy for query {} : {}".format(indent, i, accuracy))
+
+        # Let's test the model
+        test_event_records = test_event_adapter(batch_size)
+
+        logits = sess.run([logits_0, logits_1, logits_2, logits_3, logits_4, logits_5, logits_6, logits_7, logits_8, logits_9, logits_10, logits_11, logits_12, logits_13, logits_14, logits_15],
+                                                feed_dict={events: test_event_records})
+
+        test_query_answers = []
+        test_query_answers.append(tf.argmax(logits[0], 1))
+        test_query_answers.append(tf.argmax(logits[1], 1))
+        test_query_answers.append(tf.argmax(logits[2], 1))
+        test_query_answers.append(tf.argmax(logits[3], 1))
+        test_query_answers.append(tf.argmax(logits[4], 1))
+        test_query_answers.append(tf.argmax(logits[5], 1))
+        test_query_answers.append(tf.argmax(logits[6], 1))
+        test_query_answers.append(tf.argmax(logits[7], 1))
+        test_query_answers.append(tf.argmax(logits[8], 1))
+        test_query_answers.append(tf.argmax(logits[9], 1))
+        test_query_answers.append(tf.argmax(logits[10], 1))
+        test_query_answers.append(tf.argmax(logits[11], 1))
+        test_query_answers.append(tf.argmax(logits[12], 1))
+        test_query_answers.append(tf.argmax(logits[13], 1))
+        test_query_answers.append(tf.argmax(logits[14], 1))
+        test_query_answers.append(tf.argmax(logits[15], 1))
+
+
+        for i in range(16):
+            print("answers[{}] : {}".format(i, sess.run(test_query_answers[i])))
