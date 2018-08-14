@@ -53,12 +53,18 @@ def event_adapter(batch_size):
       query_answers: answers to query
     """
 
+    #
+    # WARN: Not working!!
+    #
     filepath = os.path.join(os.getcwd(), "data_train")
     train_data_file = os.path.join(filepath, "train_data.csv")
     n = sum(1 for line in open(train_data_file)) - 1 #number of records in file (excludes header)
     skip = sorted(random.sample(range(1,n+1),n-batch_size)) #the 0-indexed header will not be included in the skip list
     event_records = pandas.read_csv(train_data_file, skiprows=skip, engine='python')
 
+    #
+    # WARN: Not working!!
+    #
     query_answers = []
     query_answers.append(np.random.randint(0, answer_dim[0], batch_size))
     query_answers.append(np.random.randint(0, answer_dim[1], batch_size))
@@ -153,15 +159,16 @@ model_loss = loss_0 + loss_1 + loss_2
 # Declare Optimizer
 solver = tf.train.AdamOptimizer(learning_rate).minimize(model_loss)
 
-with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-    with tf.device(device_name):
+with tf.Session() as sess:
+    with tf.device("/cpu:0"):
         sess.run(tf.global_variables_initializer())
 
+        # Train the model
         for epoch in range(num_epochs):
-            events_records, query_answers = event_adapter(batch_size)
+            event_records, query_answers = event_adapter(batch_size)
 
             feed_dict = {
-                events: events_records,
+                events: event_records,
                 answer_0: query_answers[0],
                 answer_1: query_answers[1],
                 answer_2: query_answers[2],
@@ -169,5 +176,38 @@ with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
             _, loss = sess.run([solver, model_loss], feed_dict)
 
+            # Are we doing well?
             if epoch % 5 == 0:
                 print("Epoch: {}, Loss: {:.4}".format(epoch, loss))
+
+                predicted_query_answers = []
+                predicted_query_answers.append(tf.argmax(logits_0, 1))
+                predicted_query_answers.append(tf.argmax(logits_1, 1))
+                predicted_query_answers.append(tf.argmax(logits_2, 1))
+
+                indent = "--"
+                for i in range(3):
+                    prediction_results = tf.equal(predicted_query_answers[i], query_answers[i])
+                    correct_predictions = tf.reduce_sum(tf.cast(prediction_results, tf.int64))
+
+                    total_predictions = batch_size
+
+                    correct  = correct_predictions / total_predictions
+                    accuracy = sess.run(correct, feed_dict={events: event_records})
+
+                    print("{} accuracy for query {} : {}".format(indent, i, accuracy))
+
+        # Let's test the model
+        test_event_records = test_event_adapter(batch_size)
+
+        # Run the forward pass
+        logits_0, logits_1, logits_2 = sess.run([logits_0, logits_1, logits_2],
+                                                feed_dict={events: test_event_records})
+
+        test_query_answers = []
+        test_query_answers.append(tf.argmax(logits_0, 1))
+        test_query_answers.append(tf.argmax(logits_1, 1))
+        test_query_answers.append(tf.argmax(logits_2, 1))
+
+        for i in range(3):
+            print("answers[{}] : {}".format(i, sess.run(test_query_answers[i])))
