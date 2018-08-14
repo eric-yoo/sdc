@@ -26,12 +26,28 @@ filepath = os.path.join(os.getcwd(), "data_train")
 train_data_file = os.path.join(filepath, "train.csv")
 df = pandas.read_csv(train_data_file, encoding="utf-8", engine='python')
 
-# print(event_records)
+# append a blank row
+# blankrow=[]
+# print(len(encode_index))
+# for i in range(len(df.dtypes.index)):
+#     blankrow.append(-1)
+# print(blankrow)
+# df.append(pandas.Series(blankrow, index=df.dtypes.index),ignore_index=True)
+# print(df)
+
+test_data_file = os.path.join(filepath, "test.csv")
+df_test = pandas.read_csv(test_data_file, encoding="euc-kr", engine='python')
+df_test.fillna(-1, inplace=True)
+print(df_test)
+
 encoder_list=[]
 for i in encode_index:
     le = LabelEncoder()
-    df[i]= le.fit_transform(df[i])
+    le.fit(df[i])
+    df[i]= le.transform(df[i])
     encoder_list.append(le)
+    if (i in query_index):
+        df_test[i] = le.transform(df_test[i])
 
 # device_lib.list_local_devices()
 
@@ -42,7 +58,7 @@ learning_rate = 1e-3
 batch_size = 64
 
 # TODO: Implements adapter for event columns so that event records can be passed to the network
-event_dim = 46
+event_dim = 16
 embedding_dim = 128 # input column dimension
 encoder_net_hidden_layers = [512, 512, 256] # hidden layer dimensions for base network
 latent_dim = 20 # latent variable dimension
@@ -51,7 +67,8 @@ latent_dim = 20 # latent variable dimension
 answer_dim=[]
 for qi in query_index:
     answer_dim.append(df[qi].nunique())
-print(answer_dim)
+# print(answer_dim)
+
 
 # Placeholders
 events = tf.placeholder(tf.float32, shape=[None, event_dim])
@@ -86,10 +103,11 @@ def event_adapter(batch_size):
 
     sample = df.sample(n=batch_size, axis=0)
 
-    event_records = sample.values
+    event_records = sample[query_index].values
 
-    query_answers = sample[query_index].values
+    query_answers = sample[query_index].T.values
 
+    # print(query_answers[0].shape)
     return event_records, query_answers
 
 def test_event_adapter(batch_size):
@@ -259,9 +277,22 @@ with tf.Session() as sess:
                     predicted_query_answers.append(tf.argmax(logits_0, 1))
                     predicted_query_answers.append(tf.argmax(logits_1, 1))
                     predicted_query_answers.append(tf.argmax(logits_2, 1))
+                    predicted_query_answers.append(tf.argmax(logits_3, 1))
+                    predicted_query_answers.append(tf.argmax(logits_4, 1))
+                    predicted_query_answers.append(tf.argmax(logits_5, 1))
+                    predicted_query_answers.append(tf.argmax(logits_6, 1))
+                    predicted_query_answers.append(tf.argmax(logits_7, 1))
+                    predicted_query_answers.append(tf.argmax(logits_8, 1))
+                    predicted_query_answers.append(tf.argmax(logits_9, 1))
+                    predicted_query_answers.append(tf.argmax(logits_10, 1))
+                    predicted_query_answers.append(tf.argmax(logits_11, 1))
+                    predicted_query_answers.append(tf.argmax(logits_12, 1))
+                    predicted_query_answers.append(tf.argmax(logits_13, 1))
+                    predicted_query_answers.append(tf.argmax(logits_14, 1))
+                    predicted_query_answers.append(tf.argmax(logits_15, 1))
 
                     indent = "--"
-                    for i in range(3):
+                    for i in range(16):
                         prediction_results = tf.equal(predicted_query_answers[i], query_answers[i])
                         correct_predictions = tf.reduce_sum(tf.cast(prediction_results, tf.int64))
 
