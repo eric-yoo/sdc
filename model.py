@@ -5,6 +5,8 @@
 from __future__ import print_function
 
 import sys
+import os
+import pandas
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.client import device_lib
@@ -17,11 +19,12 @@ encode_index=['주야(6시,18시 기준)', '오전/오후', '요일', '요일_�
 '법규위반_대분류', '법규위반', '도로형태_대분류', '도로형태', '도로형태(전체)', '도로형태*법규위반',
 '당사자종별_1당_대분류', '당사자종별_1당', '당사자종별_2당_대분류', '당사자종별_2당',  '가해자_피해자', '가해자_도로형태', '가해자_법규위반']
 
+query_index=['주야(6시,18시 기준)', '요일', '사망자수',  '사상자수', '중상자수', '경상자수', '부상신고자수', '발생지시도', '발생지시군구','사고유형_대분류', '사고유형_중분류','법규위반', '도로형태_대분류', '도로형태',  '당사자종별_1당_대분류',  '당사자종별_2당_대분류', ]
+
+
 filepath = os.path.join(os.getcwd(), "data_train")
 train_data_file = os.path.join(filepath, "train.csv")
 df = pandas.read_csv(train_data_file, encoding="utf-8", engine='python')
-# df.dtypes.index
-event_records = df.values
 
 # print(event_records)
 encoder_list=[]
@@ -45,7 +48,10 @@ encoder_net_hidden_layers = [512, 512, 256] # hidden layer dimensions for base n
 latent_dim = 20 # latent variable dimension
 
 # The number of possible answers for each query
-answer_dim = [10, 20, 30]
+answer_dim=[]
+for qi in query_index:
+    answer_dim.append(df[qi].nunique())
+print(answer_dim)
 
 # Placeholders
 events = tf.placeholder(tf.float32, shape=[None, event_dim])
@@ -81,8 +87,6 @@ def event_adapter(batch_size):
     sample = df.sample(n=batch_size, axis=0)
 
     event_records = sample.values
-
-    query_index=['주야(6시,18시 기준)', '요일', '사망자수',  '사상자수', '중상자수', '경상자수', '부상신고자수', '발생지시도', '발생지시군구','사고유형_대분류', '사고유형_중분류','법규위반', '도로형태_대분류', '도로형태',  '당사자종별_1당_대분류',  '당사자종별_2당_대분류', ]
 
     query_answers = sample[query_index].values
 
@@ -226,7 +230,7 @@ with tf.Session() as sess:
                 event_records, query_answers = event_adapter(batch_size)
 
                 feed_dict = {
-                    events: events_records,
+                    events: event_records,
                     answer_0: query_answers[0],
                     answer_1: query_answers[1],
                     answer_2: query_answers[2],
