@@ -10,7 +10,7 @@ import pandas
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.client import device_lib
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 
 # load csv and encode as df
 
@@ -38,18 +38,31 @@ df = pandas.read_csv(train_data_file, encoding="utf-8", engine='python')
 test_data_file = os.path.join(filepath, "test.csv")
 df_test = pandas.read_csv(test_data_file, encoding="euc-kr", engine='python')
 df_test.fillna(-1, inplace=True)
-print(df_test)
+# print(df_test)
 
 encoder_list=[]
+np_array_list=[]
 for i in encode_index:
     le = LabelEncoder()
     le.fit(df[i])
-    df[i]= le.transform(df[i])
+    df[i] = le.transform(df[i])
     encoder_list.append(le)
+
+    ohe = OneHotEncoder()
+    tmp = df[i].values.reshape(len(df[i]),1)
+
+    one_hot=ohe.fit_transform(tmp)
+
+    np_array=one_hot.toarray()
+#     print(np_array)
+    np_array_list.append(np_array)
     if (i in query_index):
         df_test[i] = le.transform(df_test[i])
 
-# device_lib.list_local_devices()
+df_n=np.hstack(i for i in np_array_list)
+df_n = df_n[:-1]
+# print(df_n.shape)
+
 
 # Parameters
 total_rows = 22000
@@ -104,6 +117,7 @@ def event_adapter(batch_size):
     sample = df.sample(n=batch_size, axis=0)
 
     event_records = sample[query_index].values
+    event_records = df_n[np.random.randint(df_n.shape[0], size=batch_size), :]
 
     query_answers = sample[query_index].T.values
 
@@ -261,7 +275,8 @@ model_loss = tf.reduce_sum(tf.multiply(tf.cast(losses, tf.float64),
 solver = tf.train.AdamOptimizer(learning_rate).minimize(model_loss)
 
 with tf.Session() as sess:
-    with tf.device("/gpu:0"):
+    with tf.device("/cpu:0"):
+    # with tf.device("/gpu:0"):
         sess.run(tf.global_variables_initializer())
 
         ################################# TRAIN #################################
@@ -360,7 +375,7 @@ with tf.Session() as sess:
                            logits_14,
                            logits_15], feed_dict={events: test_event_records})
 
-        
+
         # Make predictions for validation set by choosing the logits
         # with the largest value
         test_query_answers = []
