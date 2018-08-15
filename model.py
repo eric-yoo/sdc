@@ -197,7 +197,8 @@ def query_net(latent_variables, hidden_layers, output_dim):
 
 # Declare model
 embeddings = tf.Variable(tf.random_uniform([event_dim, embedding_dim], -1.0, 1.0))
-events_embedded = tf.matmul(events, embeddings)
+normalized_embeddings = tf.abs(embeddings) / tf.norm(embeddings)
+events_embedded = tf.matmul(events, normalized_embeddings)
 latent = encoder_net(events_embedded)
 logits_0 = query_net(latent, [64, 64], answer_dim[0])
 logits_1 = query_net(latent, [64, 64], answer_dim[1])
@@ -233,16 +234,38 @@ loss_12 = tf.losses.hinge_loss(tf.one_hot(answer_12, answer_dim[12]), logits=log
 loss_13 = tf.losses.hinge_loss(tf.one_hot(answer_13, answer_dim[13]), logits=logits_13)
 loss_14 = tf.losses.hinge_loss(tf.one_hot(answer_14, answer_dim[14]), logits=logits_14)
 loss_15 = tf.losses.hinge_loss(tf.one_hot(answer_15, answer_dim[15]), logits=logits_15)
-model_loss = loss_0 + loss_1 + loss_2 +loss_3 + loss_4 + loss_5 + loss_6 + loss_7 + loss_8 +loss_9 + loss_10+loss_11 + loss_12 + loss_13 + loss_14 + loss_15
+
+losses = tf.stack([loss_0,
+                   loss_1,
+                   loss_2,
+                   loss_3,
+                   loss_4,
+                   loss_5,
+                   loss_6,
+                   loss_7,
+                   loss_8,
+                   loss_9,
+                   loss_10,
+                   loss_11,
+                   loss_12,
+                   loss_13,
+                   loss_14,
+                   loss_15], axis=0)
+
+loss_weights = tf.Variable(np.ones(16))
+normalized_weights = tf.abs(loss_weights) / tf.norm(loss_weights)
+model_loss = tf.reduce_sum(tf.multiply(tf.cast(losses, tf.float64),
+                                       tf.cast(normalized_weights, tf.float64)))
 
 # Declare Optimizer
 solver = tf.train.AdamOptimizer(learning_rate).minimize(model_loss)
 
 with tf.Session() as sess:
-    with tf.device("/cpu:0"):
+    with tf.device("/gpu:0"):
         sess.run(tf.global_variables_initializer())
 
-        # Train the model
+        ################################# TRAIN #################################
+
         for epoch in range(num_epochs):
             for iter in range(total_rows // batch_size):
                 event_records, query_answers = event_adapter(batch_size)
@@ -273,42 +296,73 @@ with tf.Session() as sess:
                 if iter % 1000 == 0:
                     print("Epoch: {}, Loss: {:.4}".format(epoch, loss))
 
-                    predicted_query_answers = []
-                    predicted_query_answers.append(tf.argmax(logits_0, 1))
-                    predicted_query_answers.append(tf.argmax(logits_1, 1))
-                    predicted_query_answers.append(tf.argmax(logits_2, 1))
-                    predicted_query_answers.append(tf.argmax(logits_3, 1))
-                    predicted_query_answers.append(tf.argmax(logits_4, 1))
-                    predicted_query_answers.append(tf.argmax(logits_5, 1))
-                    predicted_query_answers.append(tf.argmax(logits_6, 1))
-                    predicted_query_answers.append(tf.argmax(logits_7, 1))
-                    predicted_query_answers.append(tf.argmax(logits_8, 1))
-                    predicted_query_answers.append(tf.argmax(logits_9, 1))
-                    predicted_query_answers.append(tf.argmax(logits_10, 1))
-                    predicted_query_answers.append(tf.argmax(logits_11, 1))
-                    predicted_query_answers.append(tf.argmax(logits_12, 1))
-                    predicted_query_answers.append(tf.argmax(logits_13, 1))
-                    predicted_query_answers.append(tf.argmax(logits_14, 1))
-                    predicted_query_answers.append(tf.argmax(logits_15, 1))
+                    # Test 10 batches to estimate accuracy
+                    correct_predictions = np.zeros(16)
+                    val_rows = batch_size * 10
+                    for n_batches in range(10):
+
+                        # Select data from training set for validation
+                        val_events, val_answers = event_adapter(batch_size)
+
+                        # Make predictions for validation set by choosing the lag
+                        val_predictions = []
+                        val_predictions.append(tf.argmax(logits_0, 1))
+                        val_predictions.append(tf.argmax(logits_1, 1))
+                        val_predictions.append(tf.argmax(logits_2, 1))
+                        val_predictions.append(tf.argmax(logits_3, 1))
+                        val_predictions.append(tf.argmax(logits_4, 1))
+                        val_predictions.append(tf.argmax(logits_5, 1))
+                        val_predictions.append(tf.argmax(logits_6, 1))
+                        val_predictions.append(tf.argmax(logits_7, 1))
+                        val_predictions.append(tf.argmax(logits_8, 1))
+                        val_predictions.append(tf.argmax(logits_9, 1))
+                        val_predictions.append(tf.argmax(logits_10, 1))
+                        val_predictions.append(tf.argmax(logits_11, 1))
+                        val_predictions.append(tf.argmax(logits_12, 1))
+                        val_predictions.append(tf.argmax(logits_13, 1))
+                        val_predictions.append(tf.argmax(logits_14, 1))
+                        val_predictions.append(tf.argmax(logits_15, 1))
+
+                        # Count correct the number of predictinos for each query
+                        for i in range(16):
+                            val_results = tf.equal(val_predictions[i], val_answers[i])
+                            num_correct = tf.reduce_sum(tf.cast(val_results, tf.int64))
+
+                            correct_predictions[i] += sess.run(num_correct,
+                                                               feed_dict={events: val_events})
 
                     indent = "--"
                     for i in range(16):
-                        prediction_results = tf.equal(predicted_query_answers[i], query_answers[i])
-                        correct_predictions = tf.reduce_sum(tf.cast(prediction_results, tf.int64))
-
-                        total_predictions = batch_size
-
-                        correct  = correct_predictions / total_predictions
-                        accuracy = sess.run(correct, feed_dict={events: event_records})
-
+                        accuracy = correct_predictions[i] / val_rows
                         print("{} accuracy for query {} : {}".format(indent, i, accuracy))
 
+        ################################# TEST #################################
+
         # Let's test the model
+        # Read from the test records
         test_event_records = test_event_adapter(batch_size)
 
-        logits = sess.run([logits_0, logits_1, logits_2, logits_3, logits_4, logits_5, logits_6, logits_7, logits_8, logits_9, logits_10, logits_11, logits_12, logits_13, logits_14, logits_15],
-                                                feed_dict={events: test_event_records})
+        # Run the forward pass to predict answers for the test data.
+        logits = sess.run([logits_0,
+                           logits_1,
+                           logits_2,
+                           logits_3,
+                           logits_4,
+                           logits_5,
+                           logits_6,
+                           logits_7,
+                           logits_8,
+                           logits_9,
+                           logits_10,
+                           logits_11,
+                           logits_12,
+                           logits_13,
+                           logits_14,
+                           logits_15], feed_dict={events: test_event_records})
 
+        
+        # Make predictions for validation set by choosing the logits
+        # with the largest value
         test_query_answers = []
         test_query_answers.append(tf.argmax(logits[0], 1))
         test_query_answers.append(tf.argmax(logits[1], 1))
@@ -328,5 +382,9 @@ with tf.Session() as sess:
         test_query_answers.append(tf.argmax(logits[15], 1))
 
 
+        # Print the answers!
         for i in range(16):
+
+            # TODO: Currently the answers are printed as numbers.
+            # Must decode numbers into original column values!
             print("answers[{}] : {}".format(i, sess.run(test_query_answers[i])))
