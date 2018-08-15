@@ -117,7 +117,7 @@ def event_adapter(batch_size):
     sample = df.sample(n=batch_size, axis=0)
 
     event_records = sample[query_index].values
-    event_records = df_n[np.random.randint(df_n.shape[0], size=batch_size), :]
+    # event_records = df_n[np.random.randint(df_n.shape[0], size=batch_size), :]
 
     query_answers = sample[query_index].T.values
 
