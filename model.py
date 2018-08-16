@@ -56,7 +56,7 @@ df = df[:-1]
 
 # Parameters
 total_rows = 22000
-num_epochs = 2
+num_epochs = 20
 learning_rate = 1e-3
 batch_size = 64
 
@@ -125,6 +125,8 @@ def test_event_adapter(batch_size):
     """
     # TODO: Replace data with real data
     test_event_records = df_test.values
+    
+
     print(test_event_records.shape)
 
     return test_event_records
@@ -398,13 +400,14 @@ with tf.Session() as sess:
 
         answers = [list(i) for i in zip(*answers)]
 
+        # write to file
         output = []
         output.append(query_index)
         for answer in answers:
             output.append(answer)
 
         now=datetime.now().strftime("%m%d_%H%M%S")
-        output_filename="output_"+now+".csv"
+        output_filename="output/output_"+now+".csv"
         with open(output_filename, "w") as f:
             writer = csv.writer(f)
             writer.writerows(output)
