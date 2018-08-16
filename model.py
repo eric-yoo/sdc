@@ -9,8 +9,11 @@ import os
 import pandas
 import tensorflow as tf
 import numpy as np
+import csv
+from datetime import datetime
 from tensorflow.python.client import device_lib
 from sklearn.preprocessing import LabelEncoder
+
 
 # load csv and encode as df
 
@@ -53,7 +56,7 @@ df = df[:-1]
 
 # Parameters
 total_rows = 22000
-num_epochs = 20
+num_epochs = 2
 learning_rate = 1e-3
 batch_size = 64
 
@@ -382,7 +385,7 @@ with tf.Session() as sess:
         test_query_answers.append(tf.argmax(logits[14], 1))
         test_query_answers.append(tf.argmax(logits[15], 1))
 
-
+        answers=[]
         # Print the answers!
         for i, column in enumerate(query_index):
 
@@ -390,4 +393,18 @@ with tf.Session() as sess:
             if(column in encode_index):
                 answer = encoder_dict[column].inverse_transform(answer)
 
+            answers.append(answer)
             print("answers[{}] : {}".format(column, answer))
+
+        answers = [list(i) for i in zip(*answers)]
+
+        output = []
+        output.append(query_index)
+        for answer in answers:
+            output.append(answer)
+
+        now=datetime.now().strftime("%m%d_%H%M%S")
+        output_filename="output_"+now+".csv"
+        with open(output_filename, "w") as f:
+            writer = csv.writer(f)
+            writer.writerows(output)
