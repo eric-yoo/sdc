@@ -38,22 +38,22 @@ df = pandas.read_csv(train_data_file, encoding="utf-8", engine='python')
 test_data_file = os.path.join(filepath, "test.csv")
 df_test = pandas.read_csv(test_data_file, encoding="euc-kr", engine='python')
 df_test.fillna(-1, inplace=True)
-print(df_test)
+# print(df_test)
 
-encoder_list=[]
+encoder_dict={}
 for i in encode_index:
     le = LabelEncoder()
     le.fit(df[i])
     df[i]= le.transform(df[i])
-    encoder_list.append(le)
+    encoder_dict[i]=le
     if (i in query_index):
         df_test[i] = le.transform(df_test[i])
-
+df = df[:-1]
 # device_lib.list_local_devices()
 
 # Parameters
 total_rows = 22000
-num_epochs = 20
+num_epochs = 1
 learning_rate = 1e-3
 batch_size = 64
 
@@ -121,7 +121,8 @@ def test_event_adapter(batch_size):
       test_event_records: evnet records to be returned
     """
     # TODO: Replace data with real data
-    test_event_records = np.random.uniform(0, 1, (batch_size, event_dim))
+    test_event_records = df_test.values
+    print(test_event_records.shape)
 
     return test_event_records
 
@@ -261,7 +262,7 @@ model_loss = tf.reduce_sum(tf.multiply(tf.cast(losses, tf.float64),
 solver = tf.train.AdamOptimizer(learning_rate).minimize(model_loss)
 
 with tf.Session() as sess:
-    with tf.device("/gpu:0"):
+    with tf.device("/cpu:0"):
         sess.run(tf.global_variables_initializer())
 
         ################################# TRAIN #################################
@@ -360,7 +361,7 @@ with tf.Session() as sess:
                            logits_14,
                            logits_15], feed_dict={events: test_event_records})
 
-        
+
         # Make predictions for validation set by choosing the logits
         # with the largest value
         test_query_answers = []
@@ -383,8 +384,10 @@ with tf.Session() as sess:
 
 
         # Print the answers!
-        for i in range(16):
+        for i, column in enumerate(query_index):
 
-            # TODO: Currently the answers are printed as numbers.
-            # Must decode numbers into original column values!
-            print("answers[{}] : {}".format(i, sess.run(test_query_answers[i])))
+            answer = sess.run(test_query_answers[i]).tolist()
+            if(column in encode_index):
+                answer = encoder_dict[column].inverse_transform(answer)
+
+            print("answers[{}] : {}".format(column, answer))
