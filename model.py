@@ -52,6 +52,8 @@ for i in encode_index:
     if (i in query_index):
         df_test[i] = le.transform(df_test[i])
 df = df[:-1]
+
+
 # device_lib.list_local_devices()
 
 # Parameters
@@ -125,7 +127,7 @@ def test_event_adapter(batch_size):
     """
     # TODO: Replace data with real data
     test_event_records = df_test.values
-    
+
 
     print(test_event_records.shape)
 
