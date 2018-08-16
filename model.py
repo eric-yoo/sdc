@@ -53,7 +53,7 @@ df = df[:-1]
 
 # Parameters
 total_rows = 22000
-num_epochs = 1
+num_epochs = 20
 learning_rate = 1e-3
 batch_size = 64
 
